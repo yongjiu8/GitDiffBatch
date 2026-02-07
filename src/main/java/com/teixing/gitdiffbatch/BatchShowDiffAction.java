@@ -9,6 +9,7 @@ import com.intellij.diff.requests.SimpleDiffRequest;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
@@ -58,7 +59,8 @@ public class BatchShowDiffAction extends AnAction {
 
         // 获取当前Git仓库
         GitRepositoryManager manager = GitUtil.getRepositoryManager(project);
-        GitRepository repository = manager.getRepositoryForFileQuick(project.getBaseDir());
+        VirtualFile baseDir = ProjectRootManager.getInstance(project).getContentRoots()[0];
+        GitRepository repository = manager.getRepositoryForFileQuick(baseDir);
         if (repository == null) return;
 
 
@@ -79,7 +81,7 @@ public class BatchShowDiffAction extends AnAction {
                 Set<String> files = getFilesModifiedByCommits(project, repository, commits);
 
                 for (String filePath : files) {
-                    VirtualFile vf = project.getBaseDir().findFileByRelativePath(filePath);
+                    VirtualFile vf = baseDir.findFileByRelativePath(filePath);
                     if (vf == null) {
                         //文件不存在创建
                         vf = createEmptyFile(project, filePath);
@@ -167,7 +169,7 @@ public class BatchShowDiffAction extends AnAction {
      */
     private VirtualFile createEmptyFile(Project project, String filePath) {
         try {
-            VirtualFile baseDir = project.getBaseDir();
+            VirtualFile baseDir = ProjectRootManager.getInstance(project).getContentRoots()[0];
             String[] pathParts = filePath.split("/");
             AtomicReference<VirtualFile> currentDir = new AtomicReference<>(baseDir);
 
