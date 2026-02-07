@@ -1,0 +1,46 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.teixing.gitdiffbatch</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+    <name>GitDiffBatch</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor email="waaqit@163.com" url="https://www.teixing.com">忒星科技</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
+    <description><![CDATA[
+        Display the Diff of the selected modified files in Git Log in batch, facilitating manual review of code merges.
+        Usage: 1. Select the commits you want to view in Git Log. 2. Click "Batch Show Diff" in the right-click menu
+        批量显示Git Log中选中提交修改文件的Diff，方便人工REVIEW代码合并。
+        使用方法：
+         1. 选中Git Log中需要查看的提交
+         2. 右键菜单中点击“Batch Show Diff”
+        ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
+    <depends>Git4Idea</depends>
+
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+
+    </extensions>
+
+    <actions>
+        <action id="com.teixing.gitdiffbatch.BatchShowDiffAction"
+                class="com.teixing.gitdiffbatch.BatchShowDiffAction"
+                text="Batch Show Diff"
+                description="Show Diff for all files modified by selected commits">
+            <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
