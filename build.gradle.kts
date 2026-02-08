@@ -34,7 +34,6 @@ tasks {
         sinceBuild.set("241")
         untilBuild.set("243.*")
         changeNotes.set("更新支持idea 2024.2+")
-        changeNotes.set("批量打开显示Git提交修改文件Diff")
     }
 
     signPlugin {
