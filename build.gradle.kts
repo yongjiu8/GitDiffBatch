@@ -26,8 +26,8 @@ tasks {
     }
 
     patchPluginXml {
-        sinceBuild.set("213")
-        untilBuild.set("223.*")
+        sinceBuild.set("203")
+        untilBuild.set("222.*")
         changeNotes.set("批量打开显示Git提交修改文件Diff")
     }
 
