@@ -51,7 +51,9 @@ public class BatchShowDiffAction extends AnAction {
         }
 
         // 获取选中的Commit
-        @NotNull List<CommitId> commits = log.getSelectedCommits();
+        VcsLogCommitSelection logNew = e.getData(VcsLogDataKeys.VCS_LOG_COMMIT_SELECTION);
+        assert logNew != null;
+        @NotNull List<CommitId> commits = logNew.getCommits();
         if (commits.isEmpty()) {
             // 提示选中提交
             return;
@@ -69,14 +71,6 @@ public class BatchShowDiffAction extends AnAction {
 
         executor.submit(() -> {
             try {
-                // 收集所有提交修改的文件
-                Set<String> affectedFilePaths = new HashSet<>();
-                for (CommitId commit : commits) {
-                    // IDEA API没有直接获取指定commit的修改文件列表的公开接口，通常需要调用底层git命令或用GitLogData
-                    // 这里为了示范，先简单跳过，建议用Git命令行获取文件列表
-                    // 例如：git diff-tree --no-commit-id --name-only -r <commitHash>
-                }
-
                 // 这里用Git命令行示例：获取所有文件
                 Set<String> files = getFilesModifiedByCommits(project, repository, commits);
 
@@ -90,17 +84,15 @@ public class BatchShowDiffAction extends AnAction {
                     // 获取commit版本的文件内容
                     Hash commitHash = commits.get(0).getHash();
 
-                    if (commitHash == null || commitHash.asString().isEmpty()) {
+                    if (commitHash.asString().isEmpty()) {
                         continue; // 跳过无效提交
                     }
 
                     VirtualFile root = repository.getRoot();
-                    if (root == null) {
-                        continue; // 跳过无效仓库根目录
-                    }
 
                     // 获取选中提交所在的分支
                     List<String> branches = (List<String>) log.getContainingBranches(commitHash, repository.getRoot());
+                    assert branches != null;
                     if (branches.isEmpty()) {
                         continue; // 如果没有找到分支，则跳过
                     }
@@ -109,6 +101,7 @@ public class BatchShowDiffAction extends AnAction {
                     // 获取分支在该提交时的文件内容
                     //String latestCommitHash = GitHistoryUtils.getCurrentRevision(project, new LocalFilePath(vf.getPath(), false), branchName).asString();
                     String branchContent = loadFileContentAtBranch(project, repository, vf, branchName);
+                    assert vf != null;
                     String workingContent = new String(vf.contentsToByteArray());
 
                     // 创建DiffContent
@@ -116,11 +109,10 @@ public class BatchShowDiffAction extends AnAction {
                     DocumentContent leftContent = contentFactory.create(project, workingContent);
                     DocumentContent rightContent = contentFactory.create(project, branchContent);
 
-                    String leftTitle = "Working Tree";
+                    String leftTitle = "Working tree";
                     String rightTitle = branchName + "@" + commitHash;
                     String[] pathParts = filePath.split("/");
-                    String fileName = pathParts[pathParts.length - 1];
-                    String title = fileName;
+                    String title = pathParts[pathParts.length - 1];
 
                     // contents 顺序：LEFT / BASE / RIGHT
                     /*List<DocumentContent> contents = Arrays.asList(leftContent, leftContent, rightContent);
@@ -142,6 +134,7 @@ public class BatchShowDiffAction extends AnAction {
                             contentTitles
                     );*/
 
+                    assert output != null;
                     DiffRequest req1 = new SimpleDiffRequest(
                             title,
                             output,
@@ -279,11 +272,11 @@ public class BatchShowDiffAction extends AnAction {
     @Override
     public void update(@NotNull AnActionEvent e) {
         Project project = e.getProject();
-        VcsLog log = e.getData(VcsLogDataKeys.VCS_LOG);
+        VcsLogCommitSelection log = e.getData(VcsLogDataKeys.VCS_LOG_COMMIT_SELECTION);
         boolean enabled = false;
         if (project != null && log != null) {
-            @NotNull List<CommitId> commits = log.getSelectedCommits();
-            enabled = commits != null && !commits.isEmpty();
+            @NotNull List<CommitId> commits = log.getCommits();
+            enabled = !commits.isEmpty();
         }
         e.getPresentation().setEnabledAndVisible(enabled);
     }
