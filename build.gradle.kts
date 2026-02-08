@@ -1,19 +1,21 @@
 plugins {
     id("java")
-    id("org.jetbrains.intellij") version "1.8.0"
+    id("org.jetbrains.kotlin.jvm") version "1.9.25"
+    id("org.jetbrains.intellij") version "1.17.4"
 }
 
 group = "com.teixing"
-version = "1.0-SNAPSHOT"
+version = "1.2-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    gradlePluginPortal()
 }
 
 // Configure Gradle IntelliJ Plugin
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellij {
-    version.set("2021.3.3")
+    version.set("2024.1.7")
     type.set("IC") // Target IDE Platform
     plugins.set(listOf("Git4Idea"))
 }
@@ -21,13 +23,17 @@ intellij {
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "11"
-        targetCompatibility = "11"
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+    }
+    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions.jvmTarget = "17"
     }
 
     patchPluginXml {
-        sinceBuild.set("213")
-        untilBuild.set("223.*")
+        sinceBuild.set("241")
+        untilBuild.set("243.*")
+        changeNotes.set("更新支持idea 2024.2+")
         changeNotes.set("批量打开显示Git提交修改文件Diff")
     }
 
