@@ -69,52 +69,52 @@ public class BatchShowDiffAction extends AnAction {
 
         executor.submit(() -> {
             try {
-                // 收集所有提交修改的文件
-                Set<String> affectedFilePaths = new HashSet<>();
-                for (CommitId commit : commits) {
-                    // IDEA API没有直接获取指定commit的修改文件列表的公开接口，通常需要调用底层git命令或用GitLogData
-                    // 这里为了示范，先简单跳过，建议用Git命令行获取文件列表
-                    // 例如：git diff-tree --no-commit-id --name-only -r <commitHash>
-                }
-
                 // 这里用Git命令行示例：获取所有文件
-                Set<String> files = getFilesModifiedByCommits(project, repository, commits);
+                Set<Object[]> files = getFilesModifiedByCommits(project, repository, commits);
 
-                for (String filePath : files) {
-                    VirtualFile vf = baseDir.findFileByRelativePath(filePath);
+                for (Object[] fileObjArr : files) {
+                    String filePath = fileObjArr[0].toString();
+                    CommitId thisCommitId = (CommitId) fileObjArr[1];
+                    VirtualFile root = thisCommitId.getRoot();
+                    GitRepository repoForCommit = manager.getRepositoryForRootQuick(root);
+                    if (repoForCommit == null) return;
+                    VirtualFile vf = root.findFileByRelativePath(filePath);
                     if (vf == null) {
                         //文件不存在创建
                         vf = createEmptyFile(project, filePath);
                     }
 
                     // 获取commit版本的文件内容
-                    Hash commitHash = commits.get(0).getHash();
+                    Hash commitHash = thisCommitId.getHash();
 
                     if (commitHash == null || commitHash.asString().isEmpty()) {
                         continue; // 跳过无效提交
                     }
 
-                    VirtualFile root = repository.getRoot();
-                    if (root == null) {
-                        continue; // 跳过无效仓库根目录
-                    }
-
                     // 获取选中提交所在的分支
-                    List<String> branches = (List<String>) log.getContainingBranches(commitHash, repository.getRoot());
+                    List<String> branches = (List<String>) log.getContainingBranches(commitHash, root);
                     if (branches.isEmpty()) {
                         continue; // 如果没有找到分支，则跳过
                     }
-                    String branchName = branches.get(0);
+                    Set<String> existing = new HashSet<>();
+                    repoForCommit.getBranches().getLocalBranches().forEach(b -> existing.add(b.getName()));
+                    List<String> candidates = new ArrayList<>();
+                    for (String b : branches) {
+                        if (existing.contains(b)) candidates.add(b);
+                    }
+                    if (candidates.isEmpty()) return;
+                    String branchName = candidates.get(0);
 
                     // 获取分支在该提交时的文件内容
                     //String latestCommitHash = GitHistoryUtils.getCurrentRevision(project, new LocalFilePath(vf.getPath(), false), branchName).asString();
-                    String branchContent = loadFileContentAtBranch(project, repository, vf, branchName);
+                    String branchContent = loadFileContentAtBranch(project, repoForCommit, vf, branchName);
+                    assert vf != null;
                     String workingContent = new String(vf.contentsToByteArray());
 
                     // 创建DiffContent
                     DiffContentFactory contentFactory = DiffContentFactory.getInstance();
                     DocumentContent leftContent = contentFactory.create(project, workingContent);
-                    DocumentContent rightContent = contentFactory.create(project, branchContent);
+                    DocumentContent rightContent = contentFactory.create(project, branchContent, vf.getFileType());
 
                     String leftTitle = "Working Tree";
                     String rightTitle = branchName + "@" + commitHash;
@@ -230,18 +230,18 @@ public class BatchShowDiffAction extends AnAction {
     /**
      * 伪代码示例：用git命令行获取多个commit修改的文件列表
      */
-    private Set<String> getFilesModifiedByCommits(Project project, GitRepository repo, Collection<CommitId> commits) {
-        Set<String> files = new HashSet<>();
+    private Set<Object[]> getFilesModifiedByCommits(Project project, GitRepository repo, Collection<CommitId> commits) {
+        Set<Object[]> files = new HashSet<>();
         try {
-            Set<String> fileSet = new HashSet<>();
+            Set<Object[]> fileSet = new HashSet<>();
             for (CommitId commit : commits) {
                 String hash = commit.getHash().asString();
                 String cmd = "git diff-tree --no-commit-id --name-only -r " + hash;
-                Process process = Runtime.getRuntime().exec(cmd, null, new java.io.File(repo.getRoot().getPath()));
+                Process process = Runtime.getRuntime().exec(cmd, null, new java.io.File(commit.getRoot().getPath()));
                 try (Scanner scanner = new Scanner(process.getInputStream())) {
                     while (scanner.hasNextLine()) {
                         String line = scanner.nextLine();
-                        fileSet.add(line.trim());
+                        fileSet.add(new Object[]{line.trim(), commit});
                     }
                 }
                 process.waitFor();

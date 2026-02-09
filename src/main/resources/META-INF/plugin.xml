@@ -14,12 +14,189 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-        Display the Diff of the selected modified files in Git Log in batch, facilitating manual review of code merges.
-        Usage: 1. Select the commits you want to view in Git Log. 2. Click "Batch Show Diff" in the right-click menu
-        批量显示Git Log中选中提交修改文件的Diff，方便人工REVIEW代码合并。
-        使用方法：
-         1. 选中Git Log中需要查看的提交
-         2. 右键菜单中点击“Batch Show Diff”
+        <h2>🧩 A Painfully Real Scenario: Manual Code Merge in IntelliJ IDEA</h2>
+
+        If you use IntelliJ IDEA (or any JetBrains IDE) and frequently need to <b>manually merge code</b>,
+        you have almost certainly experienced this workflow.
+
+        <h3>🧠 The Typical Workflow</h3>
+
+        In the <b>Git Log</b> window:
+
+        <ul>
+            <li>🔍 Search a <b>set of commits</b> by keyword, author, or time range</li>
+            <li>You want to understand what these commits actually changed</li>
+            <li>👉 Right-click and choose <b>“Show Diff with Working Tree”</b></li>
+        </ul>
+
+        IDEA shows a list of all changed files.
+
+        Now comes the painful part 😵
+
+        You want to review each file <b>one by one in its own tab</b>, so you must:
+        <ul>
+            <li>Find a file in the diff list</li>
+            <li>Right-click → <b>“Show Diff in a New Tab”</b></li>
+            <li>Go back to Git Log</li>
+            <li>Find the next file</li>
+            <li>Repeat… again and again</li>
+        </ul>
+
+        For dozens of files, this constant jumping between Git Log and Diff completely breaks your focus.
+
+        <h3>💡 GitDiffBatch: Built Exactly to Solve This Problem</h3>
+
+        <b>GitDiffBatch</b> has one very clear goal:
+
+        <p><b>Open diffs for all files involved in selected commits — in separate tabs — at once.</b></p>
+
+        No more clicking file by file.
+        No more context switching.
+
+        <h3>🚀 A Better Workflow</h3>
+
+        With GitDiffBatch:
+
+        <ol>
+            <li>Open <b>Git Log</b></li>
+            <li>Select the commits you want to review or manually merge (multi-select supported)</li>
+            <li>👉 Trigger <b>Batch Show Diff</b></li>
+        </ol>
+
+        ✨ All related file diffs are automatically opened:
+        <ul>
+            <li>Each file in its own tab</li>
+            <li>Clear order</li>
+            <li>Ready for continuous review</li>
+        </ul>
+
+        You only need to focus on one thing:
+
+        <p><b>Review the code and decide how to merge.</b></p>
+
+        <h3>✨ Why This Matters for Manual Merging</h3>
+
+        <b>🧠 1. Continuous Thinking</b><br/>
+        Review diffs like flipping pages in a book:
+        one tab after another, without interruptions.
+
+        <br/><br/>
+
+        <b>⚡ 2. Dramatically Higher Efficiency</b><br/>
+        No repetitive right-clicks.<br/>
+        No jumping between Git Log and Diff.<br/>
+        The improvement is especially obvious with dozens of files.
+
+        <br/><br/>
+
+        <b>🛡️ 3. Safer Manual Merges</b><br/>
+        Manual merges fail when changes are missed.<br/>
+        GitDiffBatch puts <b>all relevant diffs in front of you</b>, making hidden changes and potential conflicts much easier to spot.
+
+        <h3>🧩 In Summary</h3>
+
+        This is a capability that <b>IDEA should have — but doesn’t.</b>
+
+        If you often:
+        <ul>
+            <li>Select a batch of commits in Git Log</li>
+            <li>Need to manually review or merge changes</li>
+            <li>Want all related file diffs opened in separate tabs at once</li>
+        </ul>
+
+        <b>GitDiffBatch is a must-have plugin.</b>
+
+        <h3>🚀 How to Use</h3>
+        <ol>
+            <li>Select commits in Git Log (multi-select supported)</li>
+            <li>Right-click → <b>Batch Show Diff</b></li>
+            <li>All related diffs open in tabs and can be reviewed or merged into the current branch</li>
+        </ol>
+        <h2>🧩 一个真实到不能再真实的场景：IDEA 里的人工代码合并</h2>
+
+        <p>
+            如果你使用 <b>IntelliJ IDEA</b>（或其它 JetBrains IDE），并且经常需要进行
+            <b>人工合并代码</b>，那你大概率经历过下面这个流程。
+        </p>
+
+        <h3>🧠 实际工作流程</h3>
+
+        <p>在 <b>Git Log</b> 窗口中：</p>
+
+        <ul>
+            <li>🔍 通过关键字 / 作者 / 时间范围搜索出 <b>一批提交</b></li>
+            <li>为了搞清楚这些提交都改了什么</li>
+            <li>👉 右键选择 <b>Show Diff with Working Tree</b></li>
+        </ul>
+
+        <p>
+            IDEA 会把 <b>所有有差异的文件</b> 一次性列出来。
+        </p>
+
+        <p>你开始人工分析：</p>
+        <ul>
+            <li>哪些文件需要合并</li>
+            <li>哪些可以忽略</li>
+            <li>哪些存在潜在的冲突风险</li>
+        </ul>
+
+        <p>
+            接下来是最痛苦的部分 😵
+        </p>
+
+        <p>
+            你希望 <b>逐个文件在独立 Tab 中对比代码</b>，于是你只能：
+        </p>
+
+        <ul>
+            <li>在 Diff 列表中找到一个文件</li>
+            <li>右键 👉 <b>Show Diff in a New Tab</b></li>
+            <li>再回到 Git Log</li>
+            <li>再找这个提交到底改了哪个文件</li>
+            <li>重复 N 次……</li>
+        </ul>
+
+        <p>
+            👉 <b>每一个文件都要点一遍</b>，每一次都要在 Git Log 和 Diff 之间来回跳转。
+        </p>
+
+        <h3>💡 GitDiffBatch：就是为了解决这个问题而生的</h3>
+
+        <p>
+            <b>GitDiffBatch</b> 解决的正是这个核心需求：
+        </p>
+
+        <p>
+            <b>能不能直接从 Git Log 里，把这批提交涉及的所有文件，一次性打开 Diff？</b>
+        </p>
+
+        <p>答案是：<b>可以。</b></p>
+
+        <h3>🎯 GitDiffBatch 能做什么</h3>
+
+        <ul>
+            <li>👉 从 Git Log 中选中 <b>多个提交</b></li>
+            <li>👉 使用 GitDiffBatch 提供的 <b>批量 Diff 操作</b></li>
+            <li>👉 所有相关文件的 Diff <b>自动打开</b></li>
+            <li>👉 <b>每个文件一个独立 Tab</b></li>
+        </ul>
+
+        <p>
+            无需反复点击，无需来回跳转，只需专注于代码本身。
+        </p>
+
+        <h3>🔍 使用方法</h3>
+
+        <ol>
+            <li>选中需要对比或人工合并的提交记录（支持多选）</li>
+            <li>右键菜单中点击 <b>Batch Show Diff</b></li>
+            <li>选中的差异文件会全部在独立 Tab 中展示，可直接 Review 并合入当前分支</li>
+        </ol>
+
+        <p>
+            <b>GitDiffBatch</b> 是一个专为 <b>人工合并 / 人工代码审查</b> 场景打造的效率插件，
+            让你把时间真正花在 <b>理解代码变化</b> 上，而不是重复的点击操作。
+        </p>
         ]]></description>
 
     <!-- Product and plugin compatibility requirements.
