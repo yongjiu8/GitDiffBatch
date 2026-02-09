@@ -31,9 +31,9 @@ tasks {
     }
 
     patchPluginXml {
-        sinceBuild.set("241")
-        untilBuild.set("243.*")
-        changeNotes.set("更新支持idea 2024.2+")
+        sinceBuild.set("223")
+        untilBuild.set("253.*")
+        changeNotes.set("更新支持idea 2022.3+")
     }
 
     signPlugin {
