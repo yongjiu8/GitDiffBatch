@@ -14,7 +14,7 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-        <h2>🧩 A Painfully Real Scenario: Manual Code Merge in IntelliJ IDEA</h2>
+        <h2>A Painfully Real Scenario: Manual Code Merge in IntelliJ IDEA</h2>
 
 If you use IntelliJ IDEA (or any JetBrains IDE) and frequently need to <b>manually merge code</b>,
 you have almost certainly experienced this workflow.
