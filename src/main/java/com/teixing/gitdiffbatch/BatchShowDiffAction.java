@@ -20,6 +20,9 @@ import git4idea.repo.GitRepositoryManager;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,9 +54,7 @@ public class BatchShowDiffAction extends AnAction {
         }
 
         // 获取选中的Commit
-        VcsLogCommitSelection logNew = e.getData(VcsLogDataKeys.VCS_LOG_COMMIT_SELECTION);
-        assert logNew != null;
-        @NotNull List<CommitId> commits = logNew.getCommits();
+        @NotNull List<CommitId> commits = log.getSelectedCommits();
         if (commits.isEmpty()) {
             // 提示选中提交
             return;
@@ -72,11 +73,11 @@ public class BatchShowDiffAction extends AnAction {
         executor.submit(() -> {
             try {
                 // 这里用Git命令行示例：获取所有文件
-                Set<Object[]> files = getFilesModifiedByCommits(project, repository, commits);
+                Set<ModifiedFileEntry> files = getFilesModifiedByCommits(project, repository, commits);
 
-                for (Object[] fileObjArr : files) {
-                    String filePath = fileObjArr[0].toString();
-                    CommitId thisCommitId = (CommitId) fileObjArr[1];
+                for (ModifiedFileEntry fileEntry : files) {
+                    String filePath = fileEntry.filePath;
+                    CommitId thisCommitId = fileEntry.commitId;
                     VirtualFile root = thisCommitId.getRoot();
                     GitRepository repoForCommit = manager.getRepositoryForRootQuick(root);
                     if (repoForCommit == null) return;
@@ -89,45 +90,54 @@ public class BatchShowDiffAction extends AnAction {
                     // 获取commit版本的文件内容
                     Hash commitHash = thisCommitId.getHash();
 
-                    if (commitHash.asString().isEmpty()) {
+                    if (commitHash == null || commitHash.asString().isEmpty()) {
                         continue; // 跳过无效提交
                     }
 
                     // 获取选中提交所在的分支
-                    List<String> branches = (List<String>) log.getContainingBranches(commitHash, thisCommitId.getRoot());
-                    assert branches != null;
+                    List<String> branches = getContainingLocalBranches(repoForCommit, commitHash.asString());
                     if (branches.isEmpty()) {
                         continue; // 如果没有找到分支，则跳过
                     }
-                    Set<String> existing = new HashSet<>();
-                    repoForCommit.getBranches().getLocalBranches().forEach(b -> existing.add(b.getName()));
-                    List<String> candidates = new ArrayList<>();
-                    for (String b : branches) {
-                        if (existing.contains(b)) candidates.add(b);
-                    }
-                    if (candidates.isEmpty()) return;
-                    String branchName = candidates.get(0);
+                    String branchName = branches.get(0);
 
                     // 获取分支在该提交时的文件内容
                     //String latestCommitHash = GitHistoryUtils.getCurrentRevision(project, new LocalFilePath(vf.getPath(), false), branchName).asString();
                     String branchContent = loadFileContentAtBranch(project, repoForCommit, vf, branchName);
                     assert vf != null;
-                    String workingContent = new String(vf.contentsToByteArray());
+                    String workingContent = decodeFileContent(vf.contentsToByteArray(), vf.getCharset());
 
                     // 创建DiffContent
                     DiffContentFactory contentFactory = DiffContentFactory.getInstance();
                     DocumentContent leftContent = contentFactory.create(project, workingContent);
                     DocumentContent rightContent = contentFactory.create(project, branchContent, vf.getFileType());
 
-                    String leftTitle = "Working tree";
+                    String leftTitle = "Working Tree";
                     String rightTitle = branchName + "@" + commitHash;
                     String[] pathParts = filePath.split("/");
-                    String title = pathParts[pathParts.length - 1];
+                    String fileName = pathParts[pathParts.length - 1];
+                    String title = fileName;
+
+                    // contents 顺序：LEFT / BASE / RIGHT
+                    /*List<DocumentContent> contents = Arrays.asList(leftContent, leftContent, rightContent);
+                    List<String> contentTitles = Arrays.asList(leftTitle, leftTitle, rightTitle);*/
 
                     // output/result：绑定到真实文件，Apply 写回工作区文件
                     DocumentContent output = contentFactory.createDocument(project, vf);
 
-                    assert output != null;
+                    /*Document doc = FileDocumentManager.getInstance().getDocument(vf);
+                    CharSequence originalContent =
+                            doc != null ? doc.getImmutableCharSequence() : workingContent;
+
+                    TextMergeRequestImpl req = new TextMergeRequestImpl(
+                            project,
+                            output,
+                            originalContent,
+                            contents,
+                            title,
+                            contentTitles
+                    );*/
+
                     DiffRequest req1 = new SimpleDiffRequest(
                             title,
                             output,
@@ -216,10 +226,9 @@ public class BatchShowDiffAction extends AnAction {
     /**
      * 伪代码示例：用git命令行获取多个commit修改的文件列表
      */
-    private Set<Object[]> getFilesModifiedByCommits(Project project, GitRepository repo, Collection<CommitId> commits) {
-        Set<Object[]> files = new HashSet<>();
+    private Set<ModifiedFileEntry> getFilesModifiedByCommits(Project project, GitRepository repo, Collection<CommitId> commits) {
+        Set<ModifiedFileEntry> files = new LinkedHashSet<>();
         try {
-            Set<Object[]> fileSet = new HashSet<>();
             for (CommitId commit : commits) {
                 String hash = commit.getHash().asString();
                 String cmd = "git diff-tree --no-commit-id --name-only -r " + hash;
@@ -227,12 +236,14 @@ public class BatchShowDiffAction extends AnAction {
                 try (Scanner scanner = new Scanner(process.getInputStream())) {
                     while (scanner.hasNextLine()) {
                         String line = scanner.nextLine();
-                        fileSet.add(new Object[]{line.trim(), commit});
+                        String filePath = line.trim();
+                        if (!filePath.isEmpty()) {
+                            files.add(new ModifiedFileEntry(filePath, commit));
+                        }
                     }
                 }
                 process.waitFor();
             }
-            files.addAll(fileSet);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -248,13 +259,10 @@ public class BatchShowDiffAction extends AnAction {
             String filePath = file.getPath().substring(repo.getRoot().getPath().length() + 1);
             String cmd = "git show " + branchName + ":" + filePath;
             Process process = Runtime.getRuntime().exec(cmd, null, new java.io.File(repo.getRoot().getPath()));
-            try (Scanner scanner = new Scanner(process.getInputStream())) {
-                StringBuilder sb = new StringBuilder();
-                while (scanner.hasNextLine()) {
-                    sb.append(scanner.nextLine()).append("\n");
-                }
+            try (InputStream inputStream = process.getInputStream()) {
+                byte[] contentBytes = inputStream.readAllBytes();
                 process.waitFor();
-                return sb.toString();
+                return decodeFileContent(contentBytes, file.getCharset());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -262,14 +270,73 @@ public class BatchShowDiffAction extends AnAction {
         }
     }
 
+    private List<String> getContainingLocalBranches(GitRepository repo, String commitHash) {
+        List<String> branches = new ArrayList<>();
+        try {
+            Process process = new ProcessBuilder(
+                    "git",
+                    "for-each-ref",
+                    "--contains=" + commitHash,
+                    "--format=%(refname:short)",
+                    "refs/heads"
+            ).directory(new java.io.File(repo.getRoot().getPath())).start();
+            try (Scanner scanner = new Scanner(process.getInputStream(), StandardCharsets.UTF_8)) {
+                while (scanner.hasNextLine()) {
+                    String branchName = scanner.nextLine().trim();
+                    if (!branchName.isEmpty()) {
+                        branches.add(branchName);
+                    }
+                }
+            }
+            process.waitFor();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return branches;
+    }
+
+    private String decodeFileContent(byte[] contentBytes, Charset charset) {
+        Charset targetCharset = charset != null ? charset : StandardCharsets.UTF_8;
+        String content = new String(contentBytes, targetCharset);
+        if (!content.isEmpty() && content.charAt(0) == '\uFEFF') {
+            return content.substring(1);
+        }
+        return content;
+    }
+
+    private static final class ModifiedFileEntry {
+        private final String filePath;
+        private final CommitId commitId;
+        private final String uniqueKey;
+
+        private ModifiedFileEntry(String filePath, CommitId commitId) {
+            this.filePath = filePath;
+            this.commitId = commitId;
+            this.uniqueKey = commitId.getRoot().getPath() + '\n' + filePath;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (!(obj instanceof ModifiedFileEntry)) return false;
+            ModifiedFileEntry other = (ModifiedFileEntry) obj;
+            return Objects.equals(uniqueKey, other.uniqueKey);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(uniqueKey);
+        }
+    }
+
     @Override
     public void update(@NotNull AnActionEvent e) {
         Project project = e.getProject();
-        VcsLogCommitSelection log = e.getData(VcsLogDataKeys.VCS_LOG_COMMIT_SELECTION);
+        VcsLog log = e.getData(VcsLogDataKeys.VCS_LOG);
         boolean enabled = false;
         if (project != null && log != null) {
-            @NotNull List<CommitId> commits = log.getCommits();
-            enabled = !commits.isEmpty();
+            @NotNull List<CommitId> commits = log.getSelectedCommits();
+            enabled = commits != null && !commits.isEmpty();
         }
         e.getPresentation().setEnabledAndVisible(enabled);
     }

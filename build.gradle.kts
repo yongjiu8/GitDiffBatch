@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.teixing"
-version = "1.1-SNAPSHOT"
+version = "1.1.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -33,7 +33,7 @@ tasks {
     patchPluginXml {
         sinceBuild.set("223")
         untilBuild.set("253.*")
-        changeNotes.set("更新支持idea 2022.3+")
+        changeNotes.set("优化部分文件打开乱码，文件打开重复问题")
     }
 
     signPlugin {
