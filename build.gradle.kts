@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.teixing"
-version = "1.0-SNAPSHOT"
+version = "1.0.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -28,7 +28,7 @@ tasks {
     patchPluginXml {
         sinceBuild.set("203")
         untilBuild.set("222.*")
-        changeNotes.set("批量打开显示Git提交修改文件Diff")
+        changeNotes.set("优化部分文件打开乱码，文件打开重复问题")
     }
 
     signPlugin {
