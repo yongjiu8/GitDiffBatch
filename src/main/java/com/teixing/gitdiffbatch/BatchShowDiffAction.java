@@ -1,32 +1,41 @@
 package com.teixing.gitdiffbatch;
 
-import com.intellij.diff.DiffContentFactory;
 import com.intellij.diff.DiffDialogHints;
-import com.intellij.diff.DiffManager;
-import com.intellij.diff.contents.DocumentContent;
-import com.intellij.diff.requests.DiffRequest;
-import com.intellij.diff.requests.SimpleDiffRequest;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
-import com.intellij.openapi.util.Computable;
+import com.intellij.openapi.vcs.FilePath;
+import com.intellij.openapi.vcs.changes.Change;
+import com.intellij.openapi.vcs.changes.ContentRevision;
+import com.intellij.openapi.vcs.changes.CurrentContentRevision;
+import com.intellij.openapi.vcs.changes.actions.diff.ShowDiffAction;
+import com.intellij.openapi.vcs.changes.actions.diff.ShowDiffContext;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import com.intellij.vcs.log.*;
+import com.intellij.vcs.log.CommitId;
+import com.intellij.vcs.log.Hash;
+import com.intellij.vcs.log.VcsLog;
+import com.intellij.vcs.log.VcsLogDataKeys;
+import com.intellij.vcsUtil.VcsUtil;
+import git4idea.GitContentRevision;
+import git4idea.GitRevisionNumber;
 import git4idea.GitUtil;
 import git4idea.repo.GitRepository;
 import git4idea.repo.GitRepositoryManager;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.Charset;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Scanner;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
-
 
 /**
  * Project:gitdiffbatch<br>
@@ -48,195 +57,79 @@ public class BatchShowDiffAction extends AnAction {
         if (project == null) return;
 
         VcsLog log = e.getData(VcsLogDataKeys.VCS_LOG);
-        if (log == null) {
-            // 没有打开Git Log窗口
-            return;
-        }
+        if (log == null) return;
 
-        // 获取选中的Commit
-        @NotNull List<CommitId> commits = log.getSelectedCommits();
-        if (commits.isEmpty()) {
-            // 提示选中提交
-            return;
-        }
+        List<CommitId> commits = log.getSelectedCommits();
+        if (commits.isEmpty()) return;
 
-        // 获取当前Git仓库
         GitRepositoryManager manager = GitUtil.getRepositoryManager(project);
         VirtualFile baseDir = ProjectRootManager.getInstance(project).getContentRoots()[0];
         GitRepository repository = manager.getRepositoryForFileQuick(baseDir);
         if (repository == null) return;
 
-
-        // 使用后台线程避免UI卡顿
         ExecutorService executor = AppExecutorUtil.getAppExecutorService();
-
         executor.submit(() -> {
             try {
-                // 这里用Git命令行示例：获取所有文件
-                Set<ModifiedFileEntry> files = getFilesModifiedByCommits(project, repository, commits);
-
+                Set<ModifiedFileEntry> files = getFilesModifiedByCommits(repository, commits);
                 for (ModifiedFileEntry fileEntry : files) {
-                    String filePath = fileEntry.filePath;
-                    CommitId thisCommitId = fileEntry.commitId;
-                    VirtualFile root = thisCommitId.getRoot();
-                    GitRepository repoForCommit = manager.getRepositoryForRootQuick(root);
-                    if (repoForCommit == null) return;
-                    VirtualFile vf = root.findFileByRelativePath(filePath);
-                    if (vf == null) {
-                        //文件不存在创建
-                        vf = createEmptyFile(project, filePath);
-                    }
-
-                    // 获取commit版本的文件内容
-                    Hash commitHash = thisCommitId.getHash();
-
-                    if (commitHash == null || commitHash.asString().isEmpty()) {
-                        continue; // 跳过无效提交
-                    }
-
-                    // 获取选中提交所在的分支
-                    List<String> branches = getContainingLocalBranches(repoForCommit, commitHash.asString());
-                    if (branches.isEmpty()) {
-                        continue; // 如果没有找到分支，则跳过
-                    }
-                    String branchName = branches.get(0);
-
-                    // 获取分支在该提交时的文件内容
-                    //String latestCommitHash = GitHistoryUtils.getCurrentRevision(project, new LocalFilePath(vf.getPath(), false), branchName).asString();
-                    String branchContent = loadFileContentAtBranch(project, repoForCommit, vf, branchName);
-                    assert vf != null;
-                    String workingContent = decodeFileContent(vf.contentsToByteArray(), vf.getCharset());
-
-                    // 创建DiffContent
-                    DiffContentFactory contentFactory = DiffContentFactory.getInstance();
-                    DocumentContent leftContent = contentFactory.create(project, workingContent);
-                    DocumentContent rightContent = contentFactory.create(project, branchContent, vf.getFileType());
-
-                    String leftTitle = "Working Tree";
-                    String rightTitle = branchName + "@" + commitHash;
-                    String[] pathParts = filePath.split("/");
-                    String fileName = pathParts[pathParts.length - 1];
-                    String title = fileName;
-
-                    // contents 顺序：LEFT / BASE / RIGHT
-                    /*List<DocumentContent> contents = Arrays.asList(leftContent, leftContent, rightContent);
-                    List<String> contentTitles = Arrays.asList(leftTitle, leftTitle, rightTitle);*/
-
-                    // output/result：绑定到真实文件，Apply 写回工作区文件
-                    DocumentContent output = contentFactory.createDocument(project, vf);
-
-                    /*Document doc = FileDocumentManager.getInstance().getDocument(vf);
-                    CharSequence originalContent =
-                            doc != null ? doc.getImmutableCharSequence() : workingContent;
-
-                    TextMergeRequestImpl req = new TextMergeRequestImpl(
-                            project,
-                            output,
-                            originalContent,
-                            contents,
-                            title,
-                            contentTitles
-                    );*/
-
-                    DiffRequest req1 = new SimpleDiffRequest(
-                            title,
-                            output,
-                            rightContent,
-                            leftTitle,
-                            rightTitle
-                    );
-
-                    // UI线程显示diff窗口
-                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
-                                //DiffManager.getInstance().showMerge(project, req);
-                                DiffManager.getInstance().showDiff(project, req1, DiffDialogHints.DEFAULT);
-                            }
-                    );
+                    showCommitDiff(project, manager, fileEntry);
                 }
-
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         });
     }
 
-    /**
-     * 创建空文件
-     */
-    private VirtualFile createEmptyFile(Project project, String filePath) {
-        try {
-            VirtualFile baseDir = ProjectRootManager.getInstance(project).getContentRoots()[0];
-            String[] pathParts = filePath.split("/");
-            AtomicReference<VirtualFile> currentDir = new AtomicReference<>(baseDir);
+    private void showCommitDiff(Project project, GitRepositoryManager manager, ModifiedFileEntry fileEntry) {
+        String filePath = fileEntry.filePath;
+        CommitId commitId = fileEntry.commitId;
+        VirtualFile root = commitId.getRoot();
+        GitRepository repoForCommit = manager.getRepositoryForRootQuick(root);
+        if (repoForCommit == null) return;
 
-            // 递归创建目录
-            for (int i = 0; i < pathParts.length - 1; i++) {
-                final VirtualFile dirToCheck = currentDir.get();
-                final String dirName = pathParts[i];
+        Hash commitHash = commitId.getHash();
+        if (commitHash == null || commitHash.asString().isEmpty()) return;
 
-                // 在 EDT 线程中检查并创建目录
-                com.intellij.openapi.application.ApplicationManager.getApplication().invokeAndWait(() -> {
-                    VirtualFile childDir = dirToCheck.findChild(dirName);
-                    if (childDir == null) {
-                        try {
-                            childDir = com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction(
-                                    (Computable<VirtualFile>) () -> {
-                                        try {
-                                            return dirToCheck.createChildDirectory(this, dirName);
-                                        } catch (IOException e) {
-                                            throw new RuntimeException(e);
-                                        }
-                                    }
-                            );
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                    currentDir.set(childDir); // 更新 currentDir
-                });
-            }
+        DiffTargetMode diffTargetMode = GitDiffBatchSettings.getInstance().getDiffTargetMode();
+        GitRevisionNumber targetRevision = resolveTargetRevision(project, repoForCommit, root, commitHash.asString(), diffTargetMode);
+        if (targetRevision == null) return;
 
+        File absoluteFile = new File(root.getPath(), filePath);
+        FilePath vcsFilePath = VcsUtil.getFilePath(absoluteFile, false);
+        ContentRevision workingTreeRevision = absoluteFile.exists()
+                ? CurrentContentRevision.create(vcsFilePath)
+                : null;
+        ContentRevision targetRevisionContent = existsInRevision(repoForCommit, targetRevision.asString(), filePath)
+                ? GitContentRevision.createRevision(vcsFilePath, targetRevision, project)
+                : null;
+        if (workingTreeRevision == null && targetRevisionContent == null) return;
 
-            // 创建文件
-            AtomicReference<VirtualFile> resultFile = new AtomicReference<>(baseDir);
-            final VirtualFile parentDir = currentDir.get();
-            final String fileName = pathParts[pathParts.length - 1];
-            // 使用 invokeLater 确保在 EDT 线程中执行写操作
-            com.intellij.openapi.application.ApplicationManager.getApplication().invokeAndWait(() -> {
-                        VirtualFile res = com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction(
-                                (Computable<VirtualFile>) () -> {
-                                    try {
-                                        return parentDir.createChildData(this, fileName);
-                                    } catch (IOException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                }
-                        );
-                        resultFile.set(res);
-                    }
-            );
-            return resultFile.get();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+        Change change = new Change(workingTreeRevision, targetRevisionContent);
+        ShowDiffContext diffContext = new ShowDiffContext(DiffDialogHints.DEFAULT);
+
+        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() ->
+                ShowDiffAction.showDiffForChange(
+                        project,
+                        Collections.singletonList(change),
+                        0,
+                        diffContext
+                )
+        );
     }
 
-
-    /**
-     * 伪代码示例：用git命令行获取多个commit修改的文件列表
-     */
-    private Set<ModifiedFileEntry> getFilesModifiedByCommits(Project project, GitRepository repo, Collection<CommitId> commits) {
+    private Set<ModifiedFileEntry> getFilesModifiedByCommits(GitRepository repo, Collection<CommitId> commits) {
         Set<ModifiedFileEntry> files = new LinkedHashSet<>();
         try {
             for (CommitId commit : commits) {
                 String hash = commit.getHash().asString();
-                String cmd = "git diff-tree --no-commit-id --name-only -r " + hash;
-                Process process = Runtime.getRuntime().exec(cmd, null, new java.io.File(commit.getRoot().getPath()));
+                Process process = Runtime.getRuntime().exec(
+                        "git diff-tree --no-commit-id --name-only -r " + hash,
+                        null,
+                        new File(commit.getRoot().getPath())
+                );
                 try (Scanner scanner = new Scanner(process.getInputStream())) {
                     while (scanner.hasNextLine()) {
-                        String line = scanner.nextLine();
-                        String filePath = line.trim();
+                        String filePath = scanner.nextLine().trim();
                         if (!filePath.isEmpty()) {
                             files.add(new ModifiedFileEntry(filePath, commit));
                         }
@@ -244,29 +137,44 @@ public class BatchShowDiffAction extends AnAction {
                 }
                 process.waitFor();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
         return files;
     }
 
+    private GitRevisionNumber resolveTargetRevision(Project project,
+                                                    GitRepository repo,
+                                                    VirtualFile root,
+                                                    String commitHash,
+                                                    DiffTargetMode diffTargetMode) {
+        if (diffTargetMode == DiffTargetMode.SELECTED_COMMIT) {
+            return new GitRevisionNumber(commitHash);
+        }
+        String branchName = resolveTargetBranchName(repo, commitHash);
+        if (branchName == null || branchName.isEmpty()) return null;
+        return resolveRevision(project, root, branchName);
+    }
 
-    /**
-     * 获取指定分支在某个提交时的文件内容
-     */
-    private String loadFileContentAtBranch(Project project, GitRepository repo, VirtualFile file, String branchName) {
-        try {
-            String filePath = file.getPath().substring(repo.getRoot().getPath().length() + 1);
-            String cmd = "git show " + branchName + ":" + filePath;
-            Process process = Runtime.getRuntime().exec(cmd, null, new java.io.File(repo.getRoot().getPath()));
-            try (InputStream inputStream = process.getInputStream()) {
-                byte[] contentBytes = inputStream.readAllBytes();
-                process.waitFor();
-                return decodeFileContent(contentBytes, file.getCharset());
+    private String resolveTargetBranchName(GitRepository repo, String commitHash) {
+        List<String> branches = getContainingLocalBranches(repo, commitHash);
+        if (branches.isEmpty()) return null;
+
+        if (repo.getCurrentBranch() != null) {
+            String currentBranchName = repo.getCurrentBranch().getName();
+            if (branches.contains(currentBranchName)) {
+                return currentBranchName;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "";
+        }
+        return branches.get(0);
+    }
+
+    private GitRevisionNumber resolveRevision(Project project, VirtualFile root, String revision) {
+        try {
+            return GitRevisionNumber.resolve(project, root, revision);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return null;
         }
     }
 
@@ -279,7 +187,7 @@ public class BatchShowDiffAction extends AnAction {
                     "--contains=" + commitHash,
                     "--format=%(refname:short)",
                     "refs/heads"
-            ).directory(new java.io.File(repo.getRoot().getPath())).start();
+            ).directory(new File(repo.getRoot().getPath())).start();
             try (Scanner scanner = new Scanner(process.getInputStream(), StandardCharsets.UTF_8)) {
                 while (scanner.hasNextLine()) {
                     String branchName = scanner.nextLine().trim();
@@ -289,19 +197,25 @@ public class BatchShowDiffAction extends AnAction {
                 }
             }
             process.waitFor();
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
         return branches;
     }
 
-    private String decodeFileContent(byte[] contentBytes, Charset charset) {
-        Charset targetCharset = charset != null ? charset : StandardCharsets.UTF_8;
-        String content = new String(contentBytes, targetCharset);
-        if (!content.isEmpty() && content.charAt(0) == '\uFEFF') {
-            return content.substring(1);
+    private boolean existsInRevision(GitRepository repo, String revision, String filePath) {
+        try {
+            Process process = new ProcessBuilder(
+                    "git",
+                    "cat-file",
+                    "-e",
+                    revision + ":" + filePath
+            ).directory(new File(repo.getRoot().getPath())).start();
+            return process.waitFor() == 0;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return false;
         }
-        return content;
     }
 
     private static final class ModifiedFileEntry {
@@ -335,11 +249,9 @@ public class BatchShowDiffAction extends AnAction {
         VcsLog log = e.getData(VcsLogDataKeys.VCS_LOG);
         boolean enabled = false;
         if (project != null && log != null) {
-            @NotNull List<CommitId> commits = log.getSelectedCommits();
+            List<CommitId> commits = log.getSelectedCommits();
             enabled = commits != null && !commits.isEmpty();
         }
         e.getPresentation().setEnabledAndVisible(enabled);
     }
-
-
 }

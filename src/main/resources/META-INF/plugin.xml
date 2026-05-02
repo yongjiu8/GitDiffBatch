@@ -108,6 +108,8 @@ If you often:
 
 <h3>🚀 How to Use</h3>
 <ol>
+  <li>In the "Settings/Preferences" menu, navigate to "Tools" > "GitDiffBatch". Within this section, you can toggle the comparison target on the right side: compare the selected commit or the latest commit of the selected branch.</li>
+  <li>The "Annotate with Git Blame" feature is now supported for comparing versions on both sides.</li>
   <li>Select commits in Git Log (multi-select supported)</li>
   <li>Right-click → <b>Batch Show Diff</b></li>
   <li>All related diffs open in tabs and can be reviewed or merged into the current branch</li>
@@ -188,6 +190,8 @@ IDEA 会把 <b>所有有差异的文件</b> 一次性列出来。
 <h3>🔍 使用方法</h3>
 
 <ol>
+  <li>增加设置Settings/Preferences > Tools > GitDiffBatch 里切换右侧对比目标：比对选中的提交或选中分支的最新提交</li>
+  <li>左右对比版本已支持Annotate with Git Blame功能</li>
   <li>选中需要对比或人工合并的提交记录（支持多选）</li>
   <li>右键菜单中点击 <b>Batch Show Diff</b></li>
   <li>选中的差异文件会全部在独立 Tab 中展示，可直接 Review 并合入当前分支</li>
@@ -209,7 +213,11 @@ IDEA 会把 <b>所有有差异的文件</b> 一次性列出来。
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.teixing.gitdiffbatch.GitDiffBatchConfigurable"
+                id="com.teixing.gitdiffbatch.settings"
+                displayName="GitDiffBatch"/>
     </extensions>
 
     <actions>
