@@ -4,10 +4,11 @@ plugins {
 }
 
 group = "com.teixing"
-version = "1.0.1-SNAPSHOT"
+version = "1.0.2-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    gradlePluginPortal()
 }
 
 // Configure Gradle IntelliJ Plugin
@@ -28,7 +29,7 @@ tasks {
     patchPluginXml {
         sinceBuild.set("203")
         untilBuild.set("222.*")
-        changeNotes.set("优化部分文件打开乱码，文件打开重复问题")
+        changeNotes.set("增加右边对比版本支持Annotate with Git Blame功能，增加设置Settings/Preferences > Tools > GitDiffBatch 里切换右侧对比目标：比对选中的提交或选中分支的最新提交")
     }
 
     signPlugin {
